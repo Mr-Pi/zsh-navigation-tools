@@ -4,7 +4,6 @@
 emulate -L zsh
 
 zmodload zsh/curses
-zmodload zsh/terminfo
 
 setopt typesetsilent
 
@@ -13,25 +12,6 @@ _nlist_compute_first_to_show_idx() {
     from_what_idx_list_is_shown=0+((current_idx-1)/page_height)*page_height+1
 }
 
-_nlist_compute_user_vars_difference() {
-        if [[ "${(t)NLIST_NONSELECTABLE_ELEMENTS}" != "array" &&
-                "${(t)NLIST_NONSELECTABLE_ELEMENTS}" != "array-local" ||
-                -n "$buffer" ]]
-        then
-            last_element_difference=0
-            current_difference=0
-        else
-            last_element_difference=$#NLIST_NONSELECTABLE_ELEMENTS
-            current_difference=0
-            local idx
-            for idx in "${(n)NLIST_NONSELECTABLE_ELEMENTS[@]}"; do
-                [ "$idx" -le "$current_idx" ] && current_difference+=1 || break
-            done
-        fi
-}
-
-integer current_difference
-integer last_element_difference
 typeset -ga reply
 reply=( -1 '' )
 integer current_idx="$1"
@@ -43,6 +23,7 @@ integer hscroll="$6"
 local key="$7"
 integer search="$8"
 local buffer="$9"
+integer uniq_mode="$10"
 
 #
 # Listening for input
@@ -92,7 +73,9 @@ case "$key" in
     ($'\n')
         # Is that element selectable?
         # Check for this only when there is no search
-        if [[ "$NLIST_SEARCH_BUFFER" != "" || ${NLIST_NONSELECTABLE_ELEMENTS[(r)$current_idx]} != $current_idx ]]; then
+        if [[ "$NLIST_SEARCH_BUFFER" != "" || "$NLIST_IS_UNIQ_MODE" -eq 1 ||
+            ${NLIST_NONSELECTABLE_ELEMENTS[(r)$current_idx]} != $current_idx ]]
+        then
             # Save current element in the result variable
             reply=( $current_idx SELECT )
         fi
@@ -102,7 +85,7 @@ case "$key" in
         ;;
     (/)
         search=1
-        [ -n $terminfo[cvvis] ] && echo -n $terminfo[cvvis]
+        _nlist_cursor_visibility 1
         ;;
     ($'\t')
         reply=( $current_idx LEAVE )
@@ -140,6 +123,9 @@ case "$key" in
     ($'\E')
         buffer=""
         ;;
+    (o|$'\C-O')
+        uniq_mode=1-uniq_mode
+        ;;
     (*)
         ;;
 esac
@@ -149,7 +135,7 @@ else
 case "$key" in
     ($'\n')
         search=0
-        [ -n $terminfo[civis] ] && echo -n $terminfo[civis]
+        _nlist_cursor_visibility 0
         ;;
     ($'\C-L')
         reply=( -1 REDRAW )
@@ -215,7 +201,10 @@ case "$key" in
     ($'\E')
         buffer=""
         search=0
-        [ -n $terminfo[civis] ] && echo -n $terminfo[civis]
+        _nlist_cursor_visibility 0
+        ;;
+    ($'\C-O')
+        uniq_mode=1-uniq_mode
         ;;
     (*)
         if [[ $#key == 1 && $((#key)) -lt 31 ]]; then
@@ -228,14 +217,11 @@ esac
 
 fi
 
-_nlist_compute_user_vars_difference
-
 reply[3]="$current_idx"
 reply[4]="$from_what_idx_list_is_shown"
 reply[5]="$hscroll"
 reply[6]="$search"
 reply[7]="$buffer"
-reply[8]=$(( current_idx - current_difference ))
-reply[9]=$(( last_element - last_element_difference ))
+reply[8]="$uniq_mode"
 
 # vim: set filetype=zsh:
