@@ -12,11 +12,16 @@ zmodload zsh/curses
 local IFS="
 "
 
+unset NLIST_COLORING_PATTERN
+
 [ -f ~/.config/znt/n-list.conf ] && . ~/.config/znt/n-list.conf
 [ -f ~/.config/znt/n-options.conf ] && . ~/.config/znt/n-options.conf
 
 # TODO restore options
 unsetopt localoptions
+
+integer kshoptionprint=0
+[[ -o kshoptionprint ]] && kshoptionprint=1
 setopt kshoptionprint
 
 local list
@@ -32,6 +37,7 @@ local NLIST_GREP_STRING="${1:=}"
 while (( 1 )); do
     list=( `setopt` )
     list=( "${(M)list[@]:#*${1:=}*}" )
+    list=( "${list[@]:#kshoptionprint*}" )
 
     if [ "$#list" -eq 0 ]; then
         echo "No matching options"
@@ -72,5 +78,7 @@ while (( 1 )); do
 done
 
 NLIST_REMEMBER_STATE=0
+
+[[ "$kshoptionprint" -eq 0 ]] && unsetopt kshoptionprint
 
 # vim: set filetype=zsh:
